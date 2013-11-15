@@ -154,6 +154,19 @@ class PostgresDbWriter(PostgresWriter):
             self.execute(sql)
 
     @status_logger
+    def write_foreign_table(self, table):
+        """Send DDL to create the specified foreign `table`
+
+        :Parameters:
+          - `table`: an instance of a :py:class:`mysql2pgsql.lib.mysql_reader.MysqlReader.Table` object that represents the table to read/write.
+
+        Returns None
+        """
+        foreign_table_sql = super(PostgresDbWriter, self).write_foreign_table(table)
+        for sql in foreign_table_sql:
+            self.execute(sql)
+
+    @status_logger
     def write_indexes(self, table):
         """Send DDL to create the specified `table` indexes
 
@@ -191,3 +204,21 @@ class PostgresDbWriter(PostgresWriter):
         """
         f = self.FileObjFaker(table, reader.read(table), self.process_row, self.verbose)
         self.copy_from(f, '"%s"' % table.name, ['"%s"' % c['name'] for c in table.columns])
+
+    def write_foreign_server(self, reader):
+        self.execute('CREATE EXTENSION IF NOT EXISTS mysql_fdw')
+        self.execute('DROP SERVER IF EXISTS mysql_svr CASCADE')
+        self.execute("CREATE SERVER mysql_svr FOREIGN DATA WRAPPER mysql_fdw OPTIONS (address '%s', port '%d')" % (reader.db.options['host'], reader.db.options['port']))
+        self.execute("CREATE USER MAPPING FOR PUBLIC SERVER mysql_svr OPTIONS (username '%s', password '%s')" % (reader.db.options['user'], reader.db.options.get('passwd', '')))
+
+    @status_logger
+    def write_contents_from_fdw(self, table):
+        """Write the contents of `table` from foreign table
+
+        :Parameters:
+          - `table`: an instance of a :py:class:`mysql2pgsql.lib.mysql_reader.MysqlReader.Table` object that represents the table to read/write.
+
+        Returns None
+        """
+        self.execute('INSERT INTO "%s" SELECT * FROM "%s_foreign"' % (table.name, table.name))
+

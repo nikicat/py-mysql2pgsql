@@ -14,6 +14,7 @@ class Converter(object):
         self.supress_schema = file_options.get('supress_schema', None)
         self.supress_indexes = file_options.get('supress_indexes', None)
         self.supress_data = file_options.get('supress_data', None)
+        self.use_fdw = file_options.get('use_fdw', None)
         self.force_truncate = file_options.get('force_truncate', None)
 
     def convert(self):
@@ -23,12 +24,17 @@ class Converter(object):
         tables = [t for t in (t for t in self.reader.tables if t.name not in self.exclude_tables) if not self.only_tables or t.name in self.only_tables]
         if self.only_tables:
             tables.sort(key=lambda t: self.only_tables.index(t.name))
+
+        if self.use_fdw:
+            self.writer.write_foreign_server(self.reader)
         
         if not self.supress_schema:
             if self.verbose:
                 print_start_table('START CREATING TABLES')
 
             for table in tables:
+                if self.use_fdw:
+                    self.writer.write_foreign_table(table)
                 self.writer.write_table(table)
 
             if self.verbose:
@@ -49,7 +55,10 @@ class Converter(object):
                 print_start_table('START WRITING TABLE DATA')
 
             for table in tables:
-                self.writer.write_contents(table, self.reader)
+                if self.use_fdw:
+                    self.writer.write_contents_from_fdw(table)
+                else:
+                    self.writer.write_contents(table, self.reader)
 
             if self.verbose:
                 print_start_table('DONE WRITING TABLE DATA')

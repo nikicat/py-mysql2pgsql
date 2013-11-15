@@ -48,6 +48,8 @@ def status_logger(f):
     finish_template = 'FINISH - %s'
     truncate_template = 'TRUNCATING TABLE %s'
     create_template = 'CREATING TABLE %s'
+    create_foreign_template = 'CREATING FOREIGN TABLE %s'
+    copy_foreign_template = 'COPYING FROM FOREIGN TABLE %s'
     constraints_template = 'ADDING CONSTRAINTS ON %s'
     write_contents_template = 'WRITING DATA TO %s'
     index_template = 'ADDING INDEXES TO %s'
@@ -71,6 +73,14 @@ def status_logger(f):
         'write_indexes': {
             'start': start_template % index_template,
             'finish': finish_template % index_template,
+            },
+        'write_foreign_table': {
+            'start': start_template % create_foreign_template,
+            'finish': finish_template % create_foreign_template,
+            },
+        'write_contents_from_fdw': {
+            'start': start_template % copy_foreign_template,
+            'finish': finish_template % copy_foreign_template,
             },
     }
 

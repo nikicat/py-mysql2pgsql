@@ -75,6 +75,9 @@ supress_schema: false
 # if supress_indexes is true, index and constraint creation will be skipped
 supress_indexes: false
 
+# use foreign data wrapper to copy data
+use_fdw: false
+
 # if force_truncate is true, forces a table truncate before table loading
 force_truncate: false
 

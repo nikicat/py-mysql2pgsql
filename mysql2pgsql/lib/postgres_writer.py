@@ -22,15 +22,15 @@ class PostgresWriter(object):
             self.tz = None
             self.tz_offset = ''
 
-    def column_description(self, column):
-        return '"%s" %s' % (column['name'], self.column_type_info(column))
+    def column_description(self, column, with_default=True):
+        return '"%s" %s' % (column['name'], self.column_type_info(column, with_default))
 
     def column_type(self, column):
         hash_key = hash(frozenset(column.items()))
         self.column_types[hash_key] = self.column_type_info(column).split(" ")[0]
         return self.column_types[hash_key]
 
-    def column_type_info(self, column):
+    def column_type_info(self, column, with_default=True):
         """
         """
         null = "" if column['null'] else " NOT NULL"
@@ -113,7 +113,7 @@ class PostgresWriter(object):
                 enum = re.sub(r'^enum\(|\)$', '', column['type'])
                 # TODO: will work for "'.',',',''''" but will fail for "'.'',','.'"
                 max_enum_size = max([len(e.replace("''", "'")) for e in enum.split("','")])
-                return default, ' character varying(%s) check(%s in (%s))' % (max_enum_size, column['name'], enum)
+                return default, (' character varying(%s)' % max_enum_size) + ('check(%s in (%s))' % (column['name'], enum) if with_default else '')
             elif column['type'].startswith('bit('):
                 return ' DEFAULT %s' % column['default'].upper() if column['default'] else column['default'], 'varbit(%s)' % re.search(r'\((\d+)\)', column['type']).group(1)
             elif column['type'].startswith('set('):
@@ -125,11 +125,11 @@ class PostgresWriter(object):
 
         default, column_type = get_type(column)
 
-        if column.get('auto_increment', None):
+        if with_default and column.get('auto_increment', None):
             return '%s DEFAULT nextval(\'%s_%s_seq\'::regclass) NOT NULL' % (
                    column_type, column['table_name'], column['name'])
                     
-        return '%s%s%s' % (column_type, (default if not default == None else ''), null)
+        return '%s%s%s' % (column_type, (default if default is not None and with_default else ''), null if with_default else '')
 
     def process_row(self, table, row):
         """Examines row data from MySQL and alters
@@ -174,7 +174,7 @@ class PostgresWriter(object):
             else:
                 row[index] = AsIs(row[index]).getquoted()
 
-    def table_attributes(self, table):
+    def table_attributes(self, table, with_default=True):
         primary_keys = []
         serial_key = None
         maxval = None
@@ -186,7 +186,7 @@ class PostgresWriter(object):
                 maxval = 1 if column['maxval'] < 1 else column['maxval'] + 1
             if column['primary_key']:
                 primary_keys.append(column['name'])
-            columns.write('  %s,\n' % self.column_description(column))
+            columns.write('  %s,\n' % self.column_description(column, with_default))
         return primary_keys, serial_key, maxval, columns.getvalue()[:-2]
 
     def truncate(self, table):
@@ -223,6 +223,13 @@ class PostgresWriter(object):
         table_sql.append('DROP TABLE IF EXISTS "%s" CASCADE;' % table.name)
         table_sql.append('CREATE TABLE "%s" (\n%s\n)\nWITHOUT OIDS;' % (table.name.encode('utf8'), columns))
         return (table_sql, serial_key_sql)
+
+    def write_foreign_table(self, table):
+        primary_keys, serial_key, maxval, columns = self.table_attributes(table, with_default=False)
+        foreign_table_sql = []
+        foreign_table_sql.append('DROP FOREIGN TABLE IF EXISTS "%s_foreign" CASCADE;' % table.name)
+        foreign_table_sql.append('''CREATE FOREIGN TABLE "%s_foreign" (\n%s\n)\n SERVER mysql_svr\n OPTIONS (table '%s.%s');''' % (table.name.encode('utf8'), columns, table.reader.db.options['db'], table.name))
+        return foreign_table_sql
 
     def write_indexes(self, table):
         index_sql = []
