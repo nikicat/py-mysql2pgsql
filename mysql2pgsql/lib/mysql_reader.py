@@ -45,6 +45,7 @@ class DB:
 
     def connect(self):
         self.conn = MySQLdb.connect(**self.options)
+        self.query("SET time_zone = '+00:00'")
 
     def close(self):
         self.conn.close()
