@@ -25,19 +25,19 @@ class DB:
 
     def __init__(self, options):
         args = {
-            'user': options.get('username', 'root'),
+            'user': str(options.get('username', 'root')),
             'db': options['database'],
             'use_unicode': True,
             'charset': 'utf8',
             }
 
         if options.get('password', None):
-            args['passwd'] = options.get('password', None)
+            args['passwd'] = str(options.get('password', None))
 
         if options.get('socket', None):
-            args['unix_socket'] = options['socket']
+            args['unix_socket'] = str(options['socket'])
         else:
-            args['host'] = options.get('hostname', 'localhost')
+            args['host'] = str(options.get('hostname', 'localhost'))
             args['port'] = options.get('port', 3306)
             args['compress'] = options.get('compress', True)
 
